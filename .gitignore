@@ -1,0 +1,19 @@
+Go
+
+*.exe *.exe~ *.dll *.so *.dylib bin/ vendor/
+
+Docker
+
+/pgdata/
+
+Environment
+
+.env
+
+Editor
+
+.vscode/ .idea/
+
+Temporary
+
+*.log *.tmp

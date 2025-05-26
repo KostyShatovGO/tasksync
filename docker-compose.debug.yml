@@ -1,0 +1,8 @@
+services:
+  tasksync:
+    image: tasksync
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    ports:
+      - 8088:8088
