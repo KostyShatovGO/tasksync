@@ -9,13 +9,15 @@ import (
 	"time"
 
 	user "github.com/KostyShatovGO/tasksync/internal"
-	_ "github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 )
 
 var DB *sql.DB
 
 func InitDB() error {
+	log.Println("Using pq driver")
+	log.Println("Available SQL drivers:", sql.Drivers())
 	databaseUrl := os.Getenv("DATABASE_URL")
 	if databaseUrl == "" {
 		return fmt.Errorf("DATABASE_URL not set in .env")
@@ -23,6 +25,13 @@ func InitDB() error {
 
 	var err error
 	DB, err = sql.Open("postgres", databaseUrl)
+	if err != nil {
+		return fmt.Errorf("failed to open database: %v", err)
+	}
+	log.Printf("DB created: %v, Error: %v", DB, err)
+	if DB == nil {
+		return fmt.Errorf("failed to initialize database: DB is nil")
+	}
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %v", err)
 	}
