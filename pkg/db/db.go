@@ -44,7 +44,6 @@ func InitDB() error {
 	log.Println("Successfully connected to PostgreSQL!")
 	return nil
 }
-
 func CreateUser(username, plainPassword string) (*user.User, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(plainPassword), bcrypt.DefaultCost)
 	if err != nil {
@@ -53,15 +52,15 @@ func CreateUser(username, plainPassword string) (*user.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	query := `
-		INSERT INTO users (username,password)
-		VALUES ($1, $2)
-		RETURNING id, username, created_at
-	`
+        INSERT INTO users (username, password, created_at)
+        VALUES ($1, $2, $3)
+        RETURNING id, username, created_at
+    `
 	var newUser user.User
-	err = DB.QueryRowContext(ctx, query, username, string(hashedPassword)).Scan(
+	err = DB.QueryRowContext(ctx, query, username, string(hashedPassword), time.Now()).Scan(
 		&newUser.ID,
 		&newUser.Username,
-		&newUser.CreatedAt, // Теперь это поле существует
+		&newUser.CreatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %v", err)

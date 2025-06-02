@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/KostyShatovGO/tasksync/pkg/db"
@@ -13,28 +14,25 @@ import (
 )
 
 func TestRegister(t *testing.T) {
-	// Создаём мок базы данных
 	dbMock, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("failed to create mock: %v", err)
 	}
 	defer dbMock.Close()
 
-	// Подменяем глобальную переменную DB в пакете db
 	db.DB = dbMock
 	defer func() { db.DB = nil }()
 
 	t.Run("Successful Registration", func(t *testing.T) {
-		// Настраиваем ожидаемые запросы
-		mock.ExpectQuery("SELECT \\* FROM users WHERE username = \\$1").
+		mock.ExpectQuery("SELECT id, username, password, created_at FROM users WHERE username = \\$1").
 			WithArgs("testuser").
-			WillReturnRows(sqlmock.NewRows([]string{"id", "username", "password"})) // Пользователь не найден
+			WillReturnRows(sqlmock.NewRows([]string{"id", "username", "password", "created_at"})) // Пользователь не найден
 
-		mock.ExpectExec("INSERT INTO users \\(username, password\\) VALUES \\(\\$1, \\$2\\)").
-			WithArgs("testuser", sqlmock.AnyArg()).
-			WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectQuery("INSERT INTO users \\(username, password, created_at\\) VALUES \\(\\$1, \\$2, \\$3\\) RETURNING id, username, created_at").
+			WithArgs("testuser", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "username", "created_at"}).
+				AddRow(1, "testuser", time.Now()))
 
-		// Подготовка запроса
 		payload := map[string]string{"username": "testuser", "password": "testpassword"}
 		jsonPayload, _ := json.Marshal(payload)
 		req, err := http.NewRequest("POST", "/register", bytes.NewBuffer(jsonPayload))
@@ -47,12 +45,10 @@ func TestRegister(t *testing.T) {
 		handler := http.HandlerFunc(RegisterHandler)
 		handler.ServeHTTP(rr, req)
 
-		// Проверка статуса
-		if status := rr.Code; status != http.StatusOK { // У тебя 200, а не 201
+		if status := rr.Code; status != http.StatusOK {
 			t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
 		}
 
-		// Проверка тела ответа
 		var response map[string]interface{}
 		if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
 			t.Fatal(err)
@@ -64,17 +60,15 @@ func TestRegister(t *testing.T) {
 			t.Errorf("response wrong username: got %v want testuser", username)
 		}
 
-		// Проверка, что все запросы выполнены
 		if err := mock.ExpectationsWereMet(); err != nil {
 			t.Errorf("there were unfulfilled expectations: %v", err)
 		}
 	})
 
 	t.Run("Duplicate User", func(t *testing.T) {
-		// Настраиваем ожидаемые запросы
-		rows := sqlmock.NewRows([]string{"id", "username", "password"}).
-			AddRow(1, "testuser", "hashedpassword")
-		mock.ExpectQuery("SELECT \\* FROM users WHERE username = \\$1").
+		rows := sqlmock.NewRows([]string{"id", "username", "password", "created_at"}).
+			AddRow(1, "testuser", "hashedpassword", time.Now())
+		mock.ExpectQuery("SELECT id, username, password, created_at FROM users WHERE username = \\$1").
 			WithArgs("testuser").
 			WillReturnRows(rows)
 
@@ -101,26 +95,22 @@ func TestRegister(t *testing.T) {
 }
 
 func TestLogin(t *testing.T) {
-	// Создаём мок базы данных
 	dbMock, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("failed to create mock: %v", err)
 	}
 	defer dbMock.Close()
 
-	// Подменяем глобальную переменную DB
 	db.DB = dbMock
 	defer func() { db.DB = nil }()
 
-	// Настраиваем переменную окружения JWT_SECRET
 	t.Setenv("JWT_SECRET", "testsecret")
 
 	t.Run("Successful Login", func(t *testing.T) {
-		// Хешируем пароль для мока
 		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("testpassword"), bcrypt.DefaultCost)
-		rows := sqlmock.NewRows([]string{"id", "username", "password"}).
-			AddRow(1, "testuser", string(hashedPassword))
-		mock.ExpectQuery("SELECT \\* FROM users WHERE username = \\$1").
+		rows := sqlmock.NewRows([]string{"id", "username", "password", "created_at"}).
+			AddRow(1, "testuser", string(hashedPassword), time.Now())
+		mock.ExpectQuery("SELECT id, username, password, created_at FROM users WHERE username = \\$1").
 			WithArgs("testuser").
 			WillReturnRows(rows)
 
@@ -155,9 +145,9 @@ func TestLogin(t *testing.T) {
 
 	t.Run("Invalid Password", func(t *testing.T) {
 		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("testpassword"), bcrypt.DefaultCost)
-		rows := sqlmock.NewRows([]string{"id", "username", "password"}).
-			AddRow(1, "testuser", string(hashedPassword))
-		mock.ExpectQuery("SELECT \\* FROM users WHERE username = \\$1").
+		rows := sqlmock.NewRows([]string{"id", "username", "password", "created_at"}).
+			AddRow(1, "testuser", string(hashedPassword), time.Now())
+		mock.ExpectQuery("SELECT id, username, password, created_at FROM users WHERE username = \\$1").
 			WithArgs("testuser").
 			WillReturnRows(rows)
 
